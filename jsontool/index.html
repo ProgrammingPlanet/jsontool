@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+    <meta name="description" content="JSON Tool is a web-based tool to create, edit, view, format, and share JSON. It shows your JSON side by side in a clear, editable tree-view and in formatted plain text. You can save your JSON and share it via URL with anyone">
+    <meta name="keywords" content="jsontool, jsontool.tk, jsonblob, jsonblob.com, json, editor, formatter, online, format, parser, json editor, jsonblob, json blob, online json editor, javascript, javascript object notation, tools, tool, json tools, tree-view, open source, free, json parser, json parser online, json formatter, json formatter online, online json formatter, online json parser, format json online, jsbin, http, API">
+    <meta name="author" content="Tristan Burch">
+    <!-- <script src="/cdn-cgi/apps/head/0Nq2SDI-_ZAUYKj1Exe75O1Q74c.js"></script> -->
+	<link rel="shortcut icon" href="favicon.ico">
+    <title>JSON Tool | create, edit, view, format JSON</title>
+    <link href="bootstrap.min.css" rel="stylesheet">
+    <link href="//netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.css" rel="stylesheet">
+
+    <!-- Additional style sheets files -->
+    
+    <link rel="stylesheet" type="text/css" href="jsoneditor/jsoneditor-min.css">
+    <link rel=" stylesheet" type="text/css" href="joyride-2.1.css">
+
+
+    <!--[if lt IE 9]>
+    <script src="//oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+    <script src="//oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+
+    
+    <style>
+        .navbar-static-top {
+            margin-bottom: 19px;
+        }
+        /* Navbar for humans*/
+        .nav.navbar-nav li a{
+            cursor: pointer !important;
+        }
+        .container-fluid {
+            margin: 10px 0 10px 0;
+        }
+    </style>
+    
+</head>
+<body>
+    <!-- Begin page content -->
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div id="codeEditor"></div>
+                    </div>
+                    <div class="col-md-6">
+                        <div id="treeEditor"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script src="jquery-1.11.0.min.js"></script>
+<script src="bootstrap.min.js"></script>
+
+<!-- Additional JavaScript files -->
+
+    <script type="text/javascript" src="jsoneditor/jsoneditor-min.js"></script>
+    <script type="text/javascript" src="ace-min.js"></script>
+    <script type="text/javascript" src="mode-json.js"></script>
+    <script type="text/javascript" src="theme-textmate.js"></script>
+    <script type="text/javascript" src="jsoneditor/theme-jsoneditor.js"></script>
+    <script type="text/javascript" src="base64.js"></script>
+    <script type="text/javascript" src="json2.js"></script>
+    <script type="text/javascript" src="jwerty.js"></script>
+    <script type="text/javascript" src="jquery.cookie.js"></script>
+    <script type="text/javascript" src="jquery.joyride-2.1.js"></script>
+
+    <script id="headerTemplate" type="text/x-jquery-tmpl">
+        <tr class="requestHeader">
+            <td>
+                <div class="input-group">
+                    <span class="input-group-addon">Header</span>
+                    <input type="text" class="form-control headerName" placeholder="Header Name">
+                    <input type="text" class="form-control headerValue" placeholder="Header Value">
+                    <span class="input-group-addon removeHeaderButton"><a href="#">&times;</a></span>
+                </div>
+            </td>
+        </tr>
+        <tr class="headerSpacer"><td>&NonBreakingSpace;</td></tr>
+    </script>
+
+    <script type="text/javascript">
+    
+        var blobId = null;
+    
+    
+        var json = {
+            "array": [1, 2, 3],
+            "boolean": true,
+            "null": null,
+            "number": 123,
+            "object": {"a": "b", "c": "d", "e": "f"},
+            "string": "Hello World"
+        };
+    
+        $.cookie.json = true;
+        var app = {};
+        app.tourVersion = $("#tourContent").data("version");
+        app.tourCookie = "jsonBlobTour";
+        app.treeEditor = null;
+        app.codeEditor = null;
+        app.isEditorSyncChange = false;
+        app.unsavedChanges = false;
+        app.apiBase = "/api/jsonBlob";
+        function sizing() {
+            var bodyHeight = $(window).height();
+            var navBarHeight = $("#navbar").height();
+            var editorHeight = bodyHeight - navBarHeight - 20; //why 100? I don't know...
+            $("#codeEditor, #treeEditor").height(editorHeight+"px");
+            app.codeEditor.resize();
+        }
+        $('#tour').click(function() {
+            if (blobId) {
+                ga('send', 'event', "Tour", "start", blobId);
+            } else {
+                ga('send', 'event', "Tour", "start");
+            }
+            $('#tourContent').joyride({
+                autoStart: true,
+                expose: true,
+                modal: true,
+                tipAnimation: 'pop',
+                tipAnimationFadeSpeed: 300,
+                cookieMonster: true,
+                cookieName: 'jsonblobTour',
+                cookieDomain: true,
+                postRideCallback: function () {
+                    if (blobId) {
+                        ga('send', 'event', "Tour", "complete", blobId);
+                    } else {
+                        ga('send', 'event', "Tour", "complete");
+                    }
+                },
+                'postStepCallback': function (index, tip) {
+                    if (blobId) {
+                        ga('send', 'event', "Tour", "step", blobId, index);
+                    } else {
+                        ga('send', 'event', "Tour", "step", null, index);
+                    }
+                }
+            });
+        });
+        $(document).ready(function() {
+            sizing();
+        });
+        $(window).resize(sizing);
+        $(".col-md-2").click(function() {
+            app.adClick = true;
+        });
+        $(window).bind('beforeunload', function(event) {
+            if (app.unsavedChanges === true && !app.adClick) {
+                return "You have unsaved work, it will be lost if you leave this page.";
+            }
+        });
+        $("#createGist").click(function() {
+            if (blobId) {
+                ga('send', 'event', "Blobs", "gist", blobId);
+            } else {
+                ga('send', 'event', "Blobs", "gist");
+            }
+            var gist = {
+                "description": "JSON Blob from " + document.URL,
+                "public": false,
+                "files": {}
+            };
+            var gistFileContent = {
+                "content": app.codeEditor == app.lastChanged ? app.codeEditor.getText() : app.treeEditor.getText()
+            };
+            gist.files[(blobId ? blobId : "blob") + ".json"] = gistFileContent;
+            $.ajax({
+                dataType: "json",
+                type: "POST",
+                url: 'https://api.github.com/gists',
+                cache: false,
+                data: JSON.stringify(gist),
+                success: function(data, textStatus, jqXHR) {
+                    if (data.html_url) {
+                        $("#gistUrl").attr("href", data.html_url);
+                        $("#gistCreated").modal('show');
+                    }
+                }
+            });
+        });
+        $("#clear").click(function() {
+            if (blobId) {
+                ga('send', 'event', "Blobs", "clear", blobId);
+            } else {
+                ga('send', 'event', "Blobs", "clear");
+            }
+            app.codeEditor.set({});
+            app.treeEditor.set({});
+            blobId = null;
+            app.unsavedChanges = null;
+            history.pushState(null, "JSON Blob", "/");
+        });
+        var removeHeader = function() {
+            var tr = $(this).parents("tr.requestHeader");
+            var trSpacer = tr.next();
+            tr.remove();
+            trSpacer.remove();
+            return false;
+        };
+        $("span.removeHeaderButton").on("click", removeHeader);
+        $(".makeRequestButton").click(function() {
+            var url = $("#requestUrl").val();
+            if (!url) {
+                alert("Please enter a URL for the request to be sent to!");
+                return false;
+            }
+            if (blobId) {
+                ga('send', 'event', "Blobs", "makeRequest", blobId);
+            } else {
+                ga('send', 'event', "Blobs", "makeRequest");
+            }
+            var method = $(this).text();
+            var headers = {};
+            $(".requestHeader").each(function() {
+                var headerName = $(this).find("input.headerName").val();
+                var headerValue = $(this).find("input.headerValue").val();
+                if (headerName) {
+                    headers[headerName] = headerValue;
+                }
+            });
+            var jsonString = app.codeEditor == app.lastChanged ? app.codeEditor.getText() : app.treeEditor.getText();
+            var request = {
+                type: method,
+                url: url,
+                headers: headers,
+                data: jsonString,
+                success: function(data, textStatus, jqXHR) {
+                    $("#statusCode").text(jqXHR.status);
+                    $(".requestedUrl").text($("#requestUrl").val());
+                    $("#responseBody").text(JSON.stringify(data, undefined, 4));
+                    var headers = jqXHR.getAllResponseHeaders().split(/\n/);
+                    if (headers.length == 0) {
+                       $("#responseHeaders").remove();
+                    } else {
+                        for (var i = 0; i < headers.length; i++) {
+                            if (headers[i]) {
+                                $("<li><code>" + headers[i] + "</code></li>").appendTo("#responseHeaders");
+                            }
+                        }
+                    }
+                    $('#makeRequestModal').modal('hide');
+                    $('#makeRequestSuccess').modal('show');
+                    ga('send', 'event', "Blobs", "makeRequestSuccess");
+                },
+                error: function(jqXHR, textStatus, errorThrown) {
+                    if (errorThrown) {
+                        $(".crossSiteExplaination").hide();
+                        $("#errorReason").text(errorThrown + (jqXHR.status ? (" (" + jqXHR.status + ")") : ""));
+                        $("#reason").show();
+                    } else {
+                        $("#reason").hide();
+                        $(".crossSiteExplaination").show();
+                        $("#Access-Control-Allow-Origin").text(window.location.protocol + "://" +window.location.host);
+                    }
+                    $(".requestedUrl").text($("#requestUrl").val());
+                    $("#makeRequestModal").modal('hide');
+                    $("#makeRequestFailure").modal('show');
+                    ga('send', 'event', "Blobs", "makeRequestFailure");
+                },
+                cache: false
+            };
+            $.ajax(request);
+        });
+        $("#addHeaderButton").click(function() {
+            var newHeader = $($("script#headerTemplate").html());
+            newHeader.find("span.removeHeaderButton").on("click", removeHeader);
+            $("#requestHeaders").append(newHeader);
+        });
+        $("#makeRequest").click(function() {
+            $('#makeRequestModal').modal('show');
+        })
+        jwerty.key('ctrl+s', function() {
+            $("#save").click();
+        });
+        $("#save").click(function() {
+            var jsonString = app.codeEditor == app.lastChanged ? app.codeEditor.getText() : app.treeEditor.getText();
+            var valid = !isValidJson(jsonString);
+            if (blobId) {
+                ga('send', 'event', "Blobs", "save", blobId, valid ? 1 : 0);
+            } else {
+                ga('send', 'event', "Blobs", "save", null, valid ? 1 : 0);
+            }
+            if (valid) {
+                $('#invalidJson').modal('show');
+                return;
+            }
+            var request;
+            if (blobId == null) {
+                request = {
+                    type: "POST",
+                    url: app.apiBase,
+                    headers: {'Content-Type': 'application/json', 'Accept':'application/json'},
+                    data: jsonString,
+                    success: function(data, textStatus, jqXHR) {
+                        var locationHeader = jqXHR.getResponseHeader("Location");
+                        var parts = locationHeader.split("/");
+                        blobId = parts[parts.length - 1];
+                        history.pushState(null, "JSON Blob " + blobId, "/" + blobId);
+                        $("#jsonBlobUrl").text(locationHeader.replace(app.apiBase, ""));
+                        $('#blobCreated').modal('show');
+                        $('#blobCreated').on('hidden.bs.modal', function (e) {
+                            window.location = locationHeader.replace(app.apiBase, "");
+                        })
+                        app.unsavedChanges = false;
+                        return;
+                    },
+                    error: function() {
+                        app.unsavedChanges = true;
+                        $('#errorSavingJson').modal('show');
+                    },
+                    cache: false
+                };
+            } else {
+                var blobApiUrl = [app.apiBase, blobId].join("/")
+                request = {
+                    type: "PUT",
+                    url: blobApiUrl,
+                    headers: {'Content-Type': 'application/json', 'Accept':'application/json'},
+                    data: jsonString,
+                    success: function(data, textStatus, jqXHR) {
+                        app.unsavedChanges = false;
+                        return;
+                    },
+                    error: function() {
+                        app.unsavedChanges = true;
+                        $('#errorSavingJson').modal('show');
+                    },
+                    cache: false
+                };
+            }
+            $.ajax(request);
+        });
+        // Store whether tree editor or code editor is last changed
+        app.lastChanged = undefined;
+        // code editor
+        app.isEditorSyncChange = true;
+        var container = document.getElementById("codeEditor");
+        app.codeEditor = new jsoneditor.JSONEditor(container, {
+            mode: 'code',
+            change: function () {
+                if (!app.isEditorSyncChange) {
+                    app.lastChanged = app.codeEditor;
+                    codeToTree();
+                    if (app.unsavedChanges != null) {
+                        app.unsavedChanges = true;
+                    }
+                }
+            },
+            error: function (err) {
+                console.log(err);
+            }
+        }, json);
+        // tree editor
+        container = document.getElementById("treeEditor");
+        app.treeEditor = new jsoneditor.JSONEditor(container, {
+            mode: 'tree',
+            change: function () {
+                if (!app.isEditorSyncChange) {
+                    app.lastChanged = app.treeEditor;
+                    treeToCode();
+                    if (app.unsavedChanges != null) {
+                        app.unsavedChanges = true;
+                    }
+                }
+            },
+            error: function (err) {
+                console.log(err);
+            }
+        }, json);
+        app.isEditorSyncChange = false;
+        function isValidJson(jsonString) {
+            try {
+                JSON.parse(jsonString);
+                return true;
+            } catch (err) {
+                return false;
+            }
+        }
+        function codeToTree() {
+            setTimeout(
+                function() {
+                    var jsonString = app.codeEditor.getText();
+                    if (jsonString != undefined && app.lastChanged == app.codeEditor && isValidJson(jsonString)) {
+                        app.isEditorSyncChange = true;
+                        var json = app.codeEditor.get();
+                        if (json != undefined) {
+                            app.treeEditor.set(json);
+                        }
+                        app.isEditorSyncChange = false;
+                    }
+                }
+            , 10);
+        }
+        function treeToCode() {
+            setTimeout(
+                function() {
+                    var jsonString = app.treeEditor.getText();
+                    if (jsonString != undefined && app.lastChanged == app.treeEditor && isValidJson(jsonString)) {
+                        app.isEditorSyncChange = true;
+                        var json = app.treeEditor.get();
+                        if (json != undefined) {
+                            app.codeEditor.set(json);
+                        }
+                        app.isEditorSyncChange = false;
+                    }
+                }
+            , 10);
+        }
+    </script>
+</body>
+</html>
